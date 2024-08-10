@@ -1,0 +1,139 @@
+#!/bin/bash
+
+# script to wrap package managers on RHEL, ARCH, DEBIAN for enhanced proxy functionality
+# without the need to edit system configuration files
+
+# usecase: if you want to use them behind cooperate proxy
+
+# to make it work behind proxy, define before running this script:
+
+# export USE_PROXY=true
+# export HTTPS_PROXY=http://your.proxy.url:port
+
+# additionally if your proxy injects its own cert, use the following to trust custom CA:
+# CERT_BASE64_STRING="<your CERT as base64 encoded string>"
+#
+#
+# Example: package-mgr install wget
+
+SCRIPT_PARAMS="$@"
+
+DOWNLOAD_TIMEOUT_SECONDS=600
+
+source ./common.sh
+
+function _pacman_wrapper {
+	temp_pkgmgr_config=$(create_temp file)
+
+	# Copy the existing pacman.conf as a base
+    if ! cp /etc/pacman.conf "${temp_pkgmgr_config}"; then
+        echo "[ERROR] Failed to copy pacman.conf"
+        exit 1
+    fi
+
+	if is_var_true "USE_PROXY"; then
+		# config pacman to use proxy url, set bigger timeout for slower timeouts
+		PROXYADDON="XferCommand = /usr/bin/curl --proxy "${HTTPS_PROXY}" -fC - --retry 3 --retry-delay 3 --connect-timeout ${DOWNLOAD_TIMEOUT_SECONDS} -o %o %u"
+
+		# optionally: cooperate proxy rewrites SSL so we need to trust its cert
+		if test_env_variable_defined CERT_BASE64_STRING; then 
+			PROXYADDON="XferCommand = /usr/bin/curl --proxy "${HTTPS_PROXY}" --cacert "${TEMP_CERT_FILE}" \
+                        -fC - --retry 3 --retry-delay 3 --connect-timeout ${DOWNLOAD_TIMEOUT_SECONDS} -o %o %u"
+		fi		
+	
+		sed -i '/^\[options\]/a $PROXYADDON' ${temp_pkgmgr_config}
+	fi
+	# the actual wrapper
+	pacman --config "${temp_pkgmgr_config}" "${SCRIPT_PARAMS}"
+}
+
+function _dnf_wrapper {
+	temp_pkgmgr_config=$(create_temp file)
+
+	# Copy the existing dnf.conf as a base
+    if ! cp /etc/dnf/dnf.conf "${temp_pkgmgr_config}"; then
+        echo "[ERROR] Failed to copy dnf.conf"
+        exit 1
+    fi
+
+	if is_var_true "USE_PROXY"; then
+		# config dnf to use proxy url, set bigger timeout for slower proxys (often on scanning proxies)
+		PROXYADDON="proxy=${HTTPS_PROXY}\ntimeout=${DOWNLOAD_TIMEOUT_SECONDS}"
+
+		# optionally: cooperate proxy rewrites SSL so we need to trust its cert
+		if test_env_variable_defined CERT_BASE64_STRING; then 
+			PROXYADDON="${PROXYADDON}\nsslverify=1\nsslcacert=${TEMP_CERT_FILE}"
+		fi		
+		echo -e "${PROXYADDON}" >> ${temp_pkgmgr_config}
+	fi
+	# the actual wrapper
+	dnf -c ${temp_pkgmgr_config} "${SCRIPT_PARAMS}"
+}
+
+function _apt_wrapper {
+	temp_pkgmgr_config=$(create_temp file)
+
+	# Copy the existing apt.conf as a base
+    if ! cp /etc/apt/apt.conf "${temp_pkgmgr_config}"; then
+        echo "[ERROR] Failed to copy apt.conf"
+        exit 1
+    fi
+
+	if is_var_true "USE_PROXY"; then
+		# config apt to use proxy url, set bigger timeout for slower timeouts
+		PROXYADDON="Acquire::https::proxy \"${HTTPS_PROXY}\";\n";
+		# Set higher timeout when using proxy
+        PROXYADDON="${PROXYADDON}Acquire::http::Timeout \"${DOWNLOAD_TIMEOUT_SECONDS}\";\nAcquire::https::Timeout \"${DOWNLOAD_TIMEOUT_SECONDS}\";\n"
+
+		# optionally: cooperate proxy rewrites SSL so we need to trust its cert
+		if test_env_variable_defined CERT_BASE64_STRING; then 
+			PROXYADDON="${PROXYADDON}\nAcquire::https::Verify-Peer \"true\";\nAcquire::https::CaInfo \"${TEMP_CERT_FILE}\";\n"
+		fi		
+		echo -e "${PROXYADDON}" >> ${temp_pkgmgr_config}
+	fi	
+	# the actual wrapper
+    apt -c "${temp_pkgmgr_config}" "${SCRIPT_PARAMS}"
+}
+
+
+function main {
+
+	if is_var_true "USE_PROXY"; then
+		echo "[INFO] proxy usage is enabled, to disable use USE_PROXY=false"
+		# encoded base64 cert env to file, if defined
+		if test_env_variable_defined CERT_BASE64_STRING; then 
+			TEMP_CERT_FILE=$(create_temp file)
+			echo "${CERT_BASE64_STRING}" | base64 -d > ${TEMP_CERT_FILE}
+			echo "[INFO] proxy SSL cert usage is enabled"
+		fi
+	else
+		echo "[INFO] proxy usage is disabled, to enable use USE_PROXY=true"
+	fi
+
+
+	# Detect the package manager based on the distribution
+	if [ -f /etc/os-release ]; then
+		. /etc/os-release
+		case "${ID}" in
+			fedora|centos|rhel)
+				_dnf_wrapper
+				;;
+			arch)
+				_pacman_wrapper
+				;;
+			ubuntu|debian)
+				_apt_wrapper
+				;;
+			*)
+				echo "Unsupported distribution: ${ID}"
+				exit 1
+				;;
+		esac
+	else
+		echo "Cannot determine distribution."
+		exit 1
+	fi
+}
+
+
+main
