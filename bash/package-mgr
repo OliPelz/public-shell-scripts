@@ -20,7 +20,7 @@ SCRIPT_PARAMS="$@"
 
 DOWNLOAD_TIMEOUT_SECONDS=600
 
-source ./common.sh
+source ./functions/common.sh
 
 function _pacman_wrapper {
     temp_pkgmgr_config=$(create_temp file)
@@ -28,7 +28,7 @@ function _pacman_wrapper {
     # Copy the existing pacman.conf as a base
     if ! cp /etc/pacman.conf "${temp_pkgmgr_config}"; then
         echo "[ERROR] Failed to copy pacman.conf"
-        exit 1
+        return 1
     fi
 
     if is_var_true "USE_PROXY"; then
@@ -53,7 +53,7 @@ function _dnf_wrapper {
     # Copy the existing dnf.conf as a base
     if ! cp /etc/dnf/dnf.conf "${temp_pkgmgr_config}"; then
         echo "[ERROR] Failed to copy dnf.conf"
-        exit 1
+        return 1
     fi
 
     if is_var_true "USE_PROXY"; then
@@ -76,7 +76,7 @@ function _apt_wrapper {
     # Copy the existing apt.conf as a base
     if ! cp /etc/apt/apt.conf "${temp_pkgmgr_config}"; then
         echo "[ERROR] Failed to copy apt.conf"
-        exit 1
+        return 1
     fi
 
     if is_var_true "USE_PROXY"; then
@@ -97,6 +97,10 @@ function _apt_wrapper {
 
 
 function main {
+	if ! is_root; then
+		echo "[ERROR] script needs to be run as root"
+		return 1
+	fi
 
     if is_var_true "USE_PROXY"; then
         echo "[INFO] proxy usage is enabled, to disable use USE_PROXY=false"
@@ -112,26 +116,16 @@ function main {
 
 
     # Detect the package manager based on the distribution
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        case "${ID}" in
-            fedora|centos|rhel)
-                _dnf_wrapper
-                ;;
-            arch)
-                _pacman_wrapper
-                ;;
-            ubuntu|debian)
-                _apt_wrapper
-                ;;
-            *)
-                echo "Unsupported distribution: ${ID}"
-                exit 1
-                ;;
-        esac
-    else
-        echo "Cannot determine distribution."
-        exit 1
+	ID=$(detect_distribution)
+	if [ ${ID} == "RHEL" ]; then 
+		_dnf_wrapper
+	elif [ ${ID} == "ARCH" ]; then 
+		_pacman_wrapper;
+	elif [ ${ID} == "DEBIAN" ]; then 
+		_apt_wrapper
+	else 
+		echo "Unsupported distribution...bailing out"
+		return 1
     fi
 }
 

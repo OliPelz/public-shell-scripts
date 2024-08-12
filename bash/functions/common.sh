@@ -2,7 +2,13 @@
 
 # small function collection
 
-test_env_variable_defined(){
+is_root() {
+   if [[ $EUID -ne 0 ]]; then
+      return 1
+   fi
+   return 0
+
+test_env_variable_defined() {
         ARG=$1
         CMD='test -z ${'$ARG'+x}'
         if eval $CMD;
@@ -13,7 +19,7 @@ test_env_variable_defined(){
         fi
 }
 
-function is_var_true {
+function is_var_true() {
     local var_name="$1"  # Store the variable name
     local var_value
 
@@ -49,5 +55,29 @@ create_temp() {
 
     if [[ "$delete_on_exit" == true ]]; then
         trap 'rm -rf "$temp_path"' EXIT
+    fi
+}
+
+detect_distribution() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        case "${ID}" in
+            fedora|centos|rhel)
+                return "RHEL"
+                ;;
+            arch)
+                return "ARCH"
+                ;;
+            ubuntu|debian)
+                return "DEBIAN"
+                ;;
+            *)
+                echo "Unsupported distribution: ${ID}"
+                return "NONE"
+                ;;
+        esac
+    else
+        echo "Cannot determine distribution."
+        return "NONE"
     fi
 }

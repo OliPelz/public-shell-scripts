@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# as package-mgr (see description) but for wget
+
+source ./common.sh
+
+function wget_wrapper {
+    local url="$1"
+    shift
+    local additional_params="$@"
+
+    local wget_cmd="wget"
+    local proxy_cmd=""
+    local cert_cmd=""
+
+    if [ "${USE_PROXY,,}" == "true" ]; then
+        if test_env_variable_defined CERT_BASE64_STRING; then
+            # Create a temporary file for the cert
+            TEMP_CERT_FILE=$(create_temp_file)
+            echo "${CERT_BASE64_STRING}" | base64 -d > "${TEMP_CERT_FILE}"
+            cert_cmd="--ca-certificate=${TEMP_CERT_FILE}"
+        fi
+        proxy_cmd="--proxy=${HTTPS_PROXY}"
+    fi
+
+    # Execute wget with the appropriate options
+    ${wget_cmd} ${proxy_cmd} ${cert_cmd} ${additional_params} "${url}"
+
+    # Clean up temporary cert file if created
+    if [ -n "${TEMP_CERT_FILE}" ]; then
+        rm "${TEMP_CERT_FILE}"
+    fi
+}
+
+

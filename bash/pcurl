@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# as package-mgr (see description) but for curl
+
+source ./common.sh
+
+function curl_wrapper {
+    local url="$1"
+    shift
+    local additional_params="$@"
+
+    local curl_cmd="curl"
+    local proxy_cmd=""
+    local cert_cmd=""
+
+    if [ "${USE_PROXY,,}" == "true" ]; then
+        if test_env_variable_defined CERT_BASE64_STRING; then
+            # Create a temporary file for the cert
+            TEMP_CERT_FILE=$(create_temp_file)
+            echo "${CERT_BASE64_STRING}" | base64 -d > "${TEMP_CERT_FILE}"
+            cert_cmd="--cacert ${TEMP_CERT_FILE}"
+        fi
+        proxy_cmd="--proxy ${HTTPS_PROXY}"
+    fi
+
+    # Execute curl with the appropriate options
+    ${curl_cmd} ${proxy_cmd} ${cert_cmd} ${additional_params} "${url}"
+
+    # Clean up temporary cert file if created
+    if [ -n "${TEMP_CERT_FILE}" ]; then
+        rm "${TEMP_CERT_FILE}"
+    fi
+}
+

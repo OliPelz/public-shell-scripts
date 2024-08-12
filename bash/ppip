@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# as package-mgr (see description) but for pip
+# additionally lets you define alternative pypi repository address and trusted hosts
+# using other env variables: PYTHON_INDEX_URL, PYTHON_REPO_URL and PYTHON_TRUSTED_HOST
+
+source ./common.sh
+
+function pip_wrapper {
+    local command="$1"
+    shift
+    local additional_params="$@"
+
+    local pip_cmd="pip"
+    local proxy_cmd=""
+    local cert_cmd=""
+    local index_url_cmd=""
+    local repo_url_cmd=""
+    local trusted_host_cmd=""
+
+    if [ "${USE_PROXY,,}" == "true" ]; then
+        if test_env_variable_defined CERT_BASE64_STRING; then
+            # Create a temporary file for the cert
+            TEMP_CERT_FILE=$(create_temp_file)
+            echo "${CERT_BASE64_STRING}" | base64 -d > "${TEMP_CERT_FILE}"
+            cert_cmd="--cert ${TEMP_CERT_FILE}"
+        fi
+        proxy_cmd="--proxy ${HTTPS_PROXY}"
+    fi
+
+    if test_env_variable_defined PYTHON_INDEX_URL; then
+        index_url_cmd="--index ${PYTHON_INDEX_URL}"
+    fi
+
+    if test_env_variable_defined PYTHON_REPO_URL; then
+        repo_url_cmd="--index-url ${PYTHON_REPO_URL}"
+    fi
+
+    if test_env_variable_defined PYTHON_TRUSTED_HOST; then
+        trusted_host_cmd="--trusted-host ${PYTHON_TRUSTED_HOST}"
+    fi
+
+    # Execute pip with the appropriate options
+    ${pip_cmd} ${proxy_cmd} ${cert_cmd} ${index_url_cmd} ${repo_url_command} ${trusted_host_cmd} ${command} ${additional_params}
+
+    # Clean up temporary cert file if created
+    if [ -n "${TEMP_CERT_FILE}" ]; then
+        rm "${TEMP_CERT_FILE}"
+    fi
+}
