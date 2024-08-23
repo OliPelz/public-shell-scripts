@@ -33,38 +33,4 @@ help:
 			printf "  %s%-20s %s%s\n", color, $$1, $$3, "\033[0m"; \
 		}' $(MAKEFILE_LIST)
 
-##black General
-install: ##black Install dependencies
-	@echo "Installing dependencies..."
-
-update: ##black Update project dependencies
-	@echo "Updating dependencies..."
-
-##red Build and Clean
-build: ##red Build the project
-	@echo "Building the project..."
-
-clean: ##red Clean the project
-	@echo "Cleaning the project..."
-
-##green Tests and Quality
-test: ##green Run the test suite
-	@echo "Running tests..."
-
-lint: ##green Run the linter
-	@echo "Linting the code..."
-
-##yellow_bold Documentation
-docs: ##yellow_bold Generate project documentation
-	@echo "Generating documentation..."
-
-##blue_bold Deployment
-deploy: ##blue_bold Deploy the application
-	@echo "Deploying the application..."
-
-##magenta_bold Advanced Usage
-rollback: ##magenta_bold Rollback to previous version
-	@echo "Rolling back..."
-
-.PHONY: help install update build clean test lint docs deploy rollback
-
+.PHONY: help install
