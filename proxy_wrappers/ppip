@@ -6,7 +6,7 @@
 
 source ./common.sh
 
-function pip_wrapper {
+function ppip_wrapper {
     local command="$1"
     shift
     local additional_params="$@"
