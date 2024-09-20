@@ -1,20 +1,28 @@
 #!/bin/bash
 
-# script to wrap package managers on RHEL, ARCH, DEBIAN for enhanced proxy functionality
-# without the need to edit system configuration files
+: '
+Package Manager Wrapper Script
 
-# usecase: if you want to use them behind cooperate proxy
+ShortDesc: A script to wrap package manager commands (pacman, dnf, apt) with optional proxy support.
 
-# to make it work behind proxy, define before running this script:
+Description:
+This script serves as a wrapper for common Linux package managers: pacman, dnf, and apt. It allows for the configuration of proxy settings and handles timeouts for downloads. The script checks if it is being run as root and detects the Linux distribution to determine which package manager to use. Proxy configurations can be set through environment variables, and it can decode and use SSL certificates for secure proxy connections.
 
-# export USE_PROXY=true
-# export HTTPS_PROXY=http://your.proxy.url:port
+Parameters:
+- use pacman, dnf or apt parameters which will get called using the correct package manager internally.
 
-# additionally if your proxy injects its own cert, use the following to trust custom CA:
-# CERT_BASE64_STRING="<your CERT as base64 encoded string>"
-#
-#
-# Example: package-mgr install wget
+Environment Variables:
+- USE_PROXY: Set to true to enable proxy usage, or false to disable it.
+- HTTPS_PROXY: The proxy URL to use.
+- CERT_BASE64_STRING: Base64-encoded SSL certificate string for verifying proxy connections (optional).
+
+Returns:
+- 0: Success
+- 1: Failure (e.g., if not run as root, if the package manager fails, or if the distribution is unsupported)
+
+Example Usage:
+./package-mgr <package_manager_args>
+'
 
 SCRIPT_PARAMS="$@"
 

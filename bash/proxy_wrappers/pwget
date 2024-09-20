@@ -5,6 +5,35 @@
 source ./common.sh
 
 function pwget_wrapper {
+   : '
+    Wget Proxy Wrapper
+
+    ShortDesc: A wrapper for the wget command that supports optional proxy and SSL certificate usage.
+
+    Description:
+    This function provides a convenient way to execute wget commands with optional proxy settings 
+    and SSL certificate handling. It takes a URL as the first parameter and any additional wget 
+    parameters as subsequent arguments. If proxy usage is enabled via the USE_PROXY environment variable, 
+    it configures wget to use the specified proxy. If a base64-encoded SSL certificate is provided, 
+    it decodes it to a temporary file for use with wget.
+
+    Parameters:
+    - url: The URL to be retrieved with wget.
+    - additional_params: Additional parameters to pass to the wget command (optional).
+
+    Environment Variables:
+    - USE_PROXY: Set to "true" to enable proxy usage.
+    - HTTPS_PROXY: The proxy URL to use if USE_PROXY is true.
+    - CERT_BASE64_STRING: Base64-encoded SSL certificate string for verifying proxy connections (optional).
+
+    Returns:
+    - 0: Success (wget command executed successfully)
+    - 1: Failure (if the wget command fails)
+
+    Example Usage:
+    pwget_wrapper "https://example.com/file.zip" --output-document=myfile.zip
+    '
+
     local url="$1"
     shift
     local additional_params="$@"
