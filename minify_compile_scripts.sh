@@ -9,6 +9,18 @@
 # --output_path: full path to the output file
 
 
+# Get numeric log level based on string value
+get_log_level_num() {
+    case "$1" in
+        DEBUG) echo 1 ;;
+        INFO) echo 2 ;;
+        WARN) echo 3 ;;
+        ERROR) echo 4 ;;
+        FATAL) echo 5 ;;
+        *) echo 0 ;;  # Unknown log level
+    esac
+}
+
 # Check if the current message level should be printed
 should_log() {
     local message_level="$1"
