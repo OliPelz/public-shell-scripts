@@ -9,25 +9,39 @@
 # --output_path: full path to the output file
 
 
+# Check if the current message level should be printed
+should_log() {
+    local message_level="$1"
+    local current_level="${BASH_LOGLEVEL:-INFO}"  # Default to INFO if BASH_LOGLEVEL is not set
+
+    local message_level_num
+    local current_level_num
+    message_level_num=$(get_log_level_num "$message_level")
+    current_level_num=$(get_log_level_num "$current_level")
+
+    [ "$message_level_num" -ge "$current_level_num" ]
+}
+
+
 # Logging functions
 log_debug() {
-    echo -e "\033[0;36m[DEBUG]\033[0m $1"  # Cyan
+    should_log "DEBUG" && echo -e "\033[0;36m[DEBUG]\033[0m $1"  # Cyan
 }
 
 log_info() {
-    echo -e "\033[0;32m[INFO]\033[0m $1"   # Green
+    should_log "INFO" && echo -e "\033[0;32m[INFO]\033[0m $1"   # Green
 }
 
 log_warn() {
-    echo -e "\033[0;33m[WARN]\033[0m $1"   # Yellow
+    should_log "WARN" && echo -e "\033[0;33m[WARN]\033[0m $1"   # Yellow
 }
 
 log_error() {
-    echo -e "\033[0;31m[ERROR]\033[0m $1"  # Red
+    should_log "ERROR" && echo -e "\033[0;31m[ERROR]\033[0m $1"  # Red
 }
 
 log_fatal() {
-    echo -e "\033[1;31m[FATAL]\033[0m $1"  # Bold Red
+    should_log "FATAL" && echo -e "\033[1;31m[FATAL]\033[0m $1"  # Bold Red
 }
 
 # Create a temporary file and return its name
@@ -131,6 +145,7 @@ concat_files_content() {
             while IFS= read -r -d '' file; do
                 [[ "$file" == *__* || "$file" == *_PLACEHOLDER* ]] && continue
                 if [[ "$file" == *."$file_type" ]]; then
+                    log_debug "$file"
                     cat "$file" >> "$output_file"
                 fi
             done < <(find "$dirpath" -type f -print0)
