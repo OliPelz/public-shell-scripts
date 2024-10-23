@@ -109,7 +109,6 @@ minify_shell_code() {
             continue
         fi
 
-        
         # skip shebang lines
         if [[ "$line" =~ ^#! ]]; then
             continue
@@ -150,6 +149,13 @@ concat_files_content() {
            [[ ! -z "$whitelist_regex" && ! "$dirpath" =~ $whitelist_regex ]]; then
             continue
         fi
+
+		find_exclude_param=""
+        if test -s ${dir_name}/__EXCLUDE_FILES; then
+			# build exclude list for find command
+			find_exclude_params="$(printf "! -path '%s' " $(cat ${dir_name}/__EXCLUDE_FILES))"
+            log_debug "found exclude file beneath ${dir_name}, generated find args: ${find_exclude_params}"
+        fi
 		log_info "processing files in folder '${dir_name}'"
 
         # Process allowed extensions
@@ -160,7 +166,7 @@ concat_files_content() {
                     log_debug "$file"
                     cat "$file" >> "$output_file"
                 fi
-            done < <(find "$dirpath" -type f -print0)
+            done < <(find "$dirpath" -type f -print0 ${find_exclude_param})
         done
     done
 }
