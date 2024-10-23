@@ -8,72 +8,15 @@
 # --whitelist_regex: regex to match directories or files (optional)
 # --output_path: full path to the output file
 
-
-# Get numeric log level based on string value
-get_log_level_num() {
-    case "$1" in
-        DEBUG) echo 1 ;;
-        INFO) echo 2 ;;
-        WARN) echo 3 ;;
-        ERROR) echo 4 ;;
-        FATAL) echo 5 ;;
-        *) echo 0 ;;  # Unknown log level
-    esac
+fc_get_full_path_script_executed_in() {
+    script_path="${BASH_SOURCE[0]}"
+    script_dir="$(cd "$(dirname "$script_path")" && pwd)"
+    echo "$script_dir"
 }
 
-# Check if the current message level should be printed
-should_log() {
-    local message_level="$1"
-    local current_level="${BASH_LOGLEVEL:-INFO}"  # Default to INFO if BASH_LOGLEVEL is not set
-
-    local message_level_num
-    local current_level_num
-    message_level_num=$(get_log_level_num "$message_level")
-    current_level_num=$(get_log_level_num "$current_level")
-
-    [ "$message_level_num" -ge "$current_level_num" ]
-}
+source "$(fc_get_full_path_script_executed_in)/common.sh"
 
 
-# Logging functions
-log_debug() {
-    should_log "DEBUG" && echo -e "\033[0;36m[DEBUG]\033[0m $1"  # Cyan
-}
-
-log_info() {
-    should_log "INFO" && echo -e "\033[0;32m[INFO]\033[0m $1"   # Green
-}
-
-log_warn() {
-    should_log "WARN" && echo -e "\033[0;33m[WARN]\033[0m $1"   # Yellow
-}
-
-log_error() {
-    should_log "ERROR" && echo -e "\033[0;31m[ERROR]\033[0m $1"  # Red
-}
-
-log_fatal() {
-    should_log "FATAL" && echo -e "\033[1;31m[FATAL]\033[0m $1"  # Bold Red
-}
-
-# Create a temporary file and return its name
-get_temp_filename() {
-    mktemp /tmp/script_processing.XXXXXX
-}
-
-# Write lines to a specified file
-write_to_file() {
-    local temp_file="$1"
-    shift
-    printf "%s\n" "$@" >> "$temp_file"
-}
-
-# Get the parent directory of the script
-get_parent_directory() {
-    local script_dir
-    script_dir=$(dirname "$(realpath "$0")")
-    dirname "$script_dir"
-}
 
 # Prepare processor function
 # there are some patterns like python comments containing the word if e.g.:
@@ -104,7 +47,7 @@ minify_shell_code() {
         # there are several keywords from python preprocess module
         # we need to keep here, full list of preprocessor statements
         if [[ "$line" =~ ^#[[:space:]]*#[[:space:]]*(define|undef|ifdef|ifndef|if|elif|else|endif|error|include) ]]; then
-			log_debug "keep preprocessor line '${line}'"
+			fc_log_debug "keep preprocessor line '${line}'"
             echo "$line" >> "$output_file"
             continue
         fi
@@ -154,7 +97,7 @@ concat_files_content() {
         if test -s ${dir_name}/__EXCLUDE_FILES; then
 			# build exclude list for find command
 			find_exclude_params="$(printf "! -path '%s' " $(cat ${dir_name}/__EXCLUDE_FILES))"
-            log_debug "found exclude file beneath ${dir_name}, generated find args: ${find_exclude_params}"
+            fc_log_debug "found exclude file beneath ${dir_name}, generated find args: ${find_exclude_params}"
         fi
 		log_info "processing files in folder '${dir_name}'"
 
@@ -163,7 +106,7 @@ concat_files_content() {
             while IFS= read -r -d '' file; do
                 [[ "$file" == *__* || "$file" == *_PLACEHOLDER* ]] && continue
                 if [[ "$file" == *."$file_type" ]]; then
-                    log_debug "$file"
+                    fc_log_debug "$file"
                     cat "$file" >> "$output_file"
                 fi
             done < <(find "$dirpath" -type f -print0 ${find_exclude_param})
@@ -176,15 +119,6 @@ usage() {
     echo "Usage: $0 --allowed_extensions ext1,ext2 --output_path OUTPUT_FILE_FULL_PATH [--dir_whitelist WHITELIST] [--whitelist_regex REGEX] [--input_dir INPUT_DIR]"
 }
 
-# Function to test if an environment variable is defined
-test_env_variable_defined() {
-    local var_name="$1"
-    if [ -z "${!var_name+x}" ]; then
-        return 1  # variable is not defined or empty string
-    else
-        return 0  # variable is set
-    fi
-}
 
 main() {
     # Parse arguments
@@ -215,7 +149,7 @@ main() {
     fi
 
     # Set input_dir to parent directory if not provided
-    if ! test_env_variable_defined input_dir; then
+    if ! fc_test_env_variable_defined input_dir; then
         input_dir=$(get_parent_directory)
     fi
 
@@ -234,15 +168,15 @@ main() {
     # Write the output to the final output file
     mv "$minified_lines_file" "$output_path"
 
-    if test_env_variable_defined debug; then
+    if fc_test_env_variable_defined debug; then
 		cp "$all_lines_file" "$output_path.debug"
-    	log_info "debug file written to '$output_path.debug'"
-    	log_info "e.g. do vimdiff '$output_path.debug' '$output_path'"
+    	fc_log_info "debug file written to '$output_path.debug'"
+    	fc_log_info "e.g. do vimdiff '$output_path.debug' '$output_path'"
     fi
     # Clean up temporary files
     rm "$all_lines_file" "$prepared_lines_file"
 
-    log_info "processed file written to '$output_path'"
+    fc_log_info "processed file written to '$output_path'"
 }
 
 main "$@"
