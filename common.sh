@@ -1,12 +1,15 @@
 # common functions for public scripts, must be prefixed/pseudo namespaced with 
 # fc_<xxxx>  for function-common, to not clash with other implementations
+#
+# 
+# to source this into any script do:
+# s=${BASH_SOURCE:-${(%):-%x}} d=$(cd "$(dirname "$s")" && pwd) && source $d/common.sh
 
 fc_get_full_path_script_executed_in() {
     script_path="${BASH_SOURCE[0]}"
     script_dir="$(cd "$(dirname "$script_path")" && pwd)"
     echo "$script_dir"
 }
-
 
 
 # function to check if a command is in path
@@ -37,31 +40,31 @@ fc_should_log() {
 
     local message_level_num
     local current_level_num
-    message_level_num=$(get_log_level_num "$message_level")
-    current_level_num=$(get_log_level_num "$current_level")
+    message_level_num=$(fc_get_log_level_num "$message_level")
+    current_level_num=$(fc_get_log_level_num "$current_level")
 
     [ "$message_level_num" -ge "$current_level_num" ]
 }
 
 # Logging functions
 fc_log_debug() {
-    should_log "DEBUG" && echo -e "\033[0;36m[DEBUG]\033[0m $1"  # Cyan
+    fc_should_log "DEBUG" && echo -e "\033[0;36m[DEBUG]\033[0m $1"  # Cyan
 }
 
 fc_log_info() {
-    should_log "INFO" && echo -e "\033[0;32m[INFO]\033[0m $1"   # Green
+    fc_should_log "INFO" && echo -e "\033[0;32m[INFO]\033[0m $1"   # Green
 }
 
 fc_log_warn() {
-    should_log "WARN" && echo -e "\033[0;33m[WARN]\033[0m $1"   # Yellow
+    fc_should_log "WARN" && echo -e "\033[0;33m[WARN]\033[0m $1"   # Yellow
 }
 
 fc_log_error() {
-    should_log "ERROR" && echo -e "\033[0;31m[ERROR]\033[0m $1"  # Red
+    fc_should_log "ERROR" && echo -e "\033[0;31m[ERROR]\033[0m $1"  # Red
 }
 
 fc_log_fatal() {
-    should_log "FATAL" && echo -e "\033[1;31m[FATAL]\033[0m $1"  # Bold Red
+    fc_should_log "FATAL" && echo -e "\033[1;31m[FATAL]\033[0m $1"  # Bold Red
 }
 
 # Create a temporary file and return its name
