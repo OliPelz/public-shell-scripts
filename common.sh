@@ -1,6 +1,22 @@
 # common functions for public scripts, must be prefixed/pseudo namespaced with 
-# fc_<xxxx>  for function-common
+# fc_<xxxx>  for function-common, to not clash with other implementations
 
+fc_get_full_path_script_executed_in() {
+    script_path="${BASH_SOURCE[0]}"
+    script_dir="$(cd "$(dirname "$script_path")" && pwd)"
+    echo "$script_dir"
+}
+
+
+
+# function to check if a command is in path
+fc_test_command_in_path() {
+        if command -v $1 >/dev/null 2>&1; then
+                return 0
+        else
+                return 1
+        fi
+}
 
 # Get numeric log level based on string value
 fc_get_log_level_num() {
@@ -26,7 +42,6 @@ fc_should_log() {
 
     [ "$message_level_num" -ge "$current_level_num" ]
 }
-
 
 # Logging functions
 fc_log_debug() {

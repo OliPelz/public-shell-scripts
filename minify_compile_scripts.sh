@@ -6,15 +6,7 @@
 # --input_dir: directory to search (optional, defaults to parent dir)
 # --dir_whitelist: comma-separated list of specific directory names to process (optional)
 # --whitelist_regex: regex to match directories or files (optional)
-# --output_path: full path to the output file
-
-fc_get_full_path_script_executed_in() {
-    script_path="${BASH_SOURCE[0]}"
-    script_dir="$(cd "$(dirname "$script_path")" && pwd)"
-    echo "$script_dir"
-}
-
-source "$(fc_get_full_path_script_executed_in)/common.sh"
+# --output_full_base_path: full path to the output file, without extension, e.g. /tmp/a/b/c instead of  /tmp/a/b/c.sh
 
 
 
@@ -99,7 +91,7 @@ concat_files_content() {
 			find_exclude_params="$(printf "! -path '%s' " $(cat ${dir_name}/__EXCLUDE_FILES))"
             fc_log_debug "found exclude file beneath ${dir_name}, generated find args: ${find_exclude_params}"
         fi
-		log_info "processing files in folder '${dir_name}'"
+		fc_log_info "processing files in folder '${dir_name}'"
 
         # Process allowed extensions
         for file_type in "${allowed_extension_types[@]}"; do
@@ -116,7 +108,7 @@ concat_files_content() {
 
 # Function to show usage
 usage() {
-    echo "Usage: $0 --allowed_extensions ext1,ext2 --output_path OUTPUT_FILE_FULL_PATH [--dir_whitelist WHITELIST] [--whitelist_regex REGEX] [--input_dir INPUT_DIR]"
+    echo "Usage: $0 --allowed_extensions ext1,ext2 --output_full_base_path OUTPUT_FILE_FULL_PATH [--dir_whitelist WHITELIST] [--whitelist_regex REGEX] [--input_dir INPUT_DIR]"
 }
 
 
@@ -126,25 +118,29 @@ main() {
         case $1 in
             --allowed_extensions) IFS=',' read -r -a allowed_extensions <<< "$2"; shift ;;
             --input_dir) input_dir="$2"; shift ;;
-            --output_path) output_path="$2"; shift ;;
+            --output_full_base_path) output_full_base_path="$2"; shift ;;
             --dir_whitelist) IFS=',' read -r -a dir_whitelist <<< "$2"; shift ;;
             --whitelist_regex) whitelist_regex="$2"; shift ;;
 			--debug) debug="$2"; shift ;;
-            *) echo "Unknown parameter passed: $1"; usage; exit 1 ;;
+            *) fc_log_error "Unknown parameter passed: $1"; usage; exit 1 ;;
         esac
         shift
     done
 
+	if fc_test_command_in_path preprocess; then
+		fc_log_error "mandantory commandline interface 'preprocess' (python) not installed"
+	fi
+
     # Check mandatory arguments
-    if [ -z "$allowed_extensions" ] || [ -z "$output_path" ]; then
-        echo "Missing required arguments."
+    if [ -z "$allowed_extensions" ] || [ -z "$output_full_base_path" ]; then
+        fc_log_error "Missing required arguments."
         usage
         exit 1
     fi
 
-    # Check if output_path starts with "__"
-    if [[ "$(basename "$output_path")" == __* ]]; then
-        echo "Error: Output file path cannot start with '__'."
+    # Check if output_full_base_path starts with "__"
+    if [[ "$(basename "$output_full_base_path")" == __* ]]; then
+        fc_log_error "Error: Output file path cannot start with '__'."
         exit 1
     fi
 
@@ -155,28 +151,38 @@ main() {
 
     # Create temporary files for processing
     all_lines_file=$(get_temp_filename)
-    prepared_lines_file=$(get_temp_filename)
-    minified_lines_file=$(get_temp_filename)
 
     # concat the files and save the result to a temporary file
     concat_files_content "$input_dir" allowed_extensions[@] dir_whitelist[@] "$whitelist_regex" "$all_lines_file"
 
+	# loop over all supported shell variants
+	for shell_variant in BASH ZSH; then
+
+		processed_lines_file=$(get_temp_filename)
+		prepared_lines_file=$(get_temp_filename)
+		minified_lines_file=$(get_temp_filename)
+
+	# now lets run the preprocessor step (currently this is a python module installed from pip)
+		preprocess -D SHELL_IS_${shell_variant}=true -v -f {all_lines_file} -o ${processed_lines_file} 
+
     # Prepare and minify the lines, using temporary files
-    prepare_processor "$all_lines_file" "$prepared_lines_file"
-    minify_shell_code "$prepared_lines_file" "$minified_lines_file"
+		prepare_processor "$processed_lines_file" "$prepared_lines_file"
+		minify_shell_code "$prepared_lines_file" "$minified_lines_file"
 
     # Write the output to the final output file
-    mv "$minified_lines_file" "$output_path"
+		final_output_file="${output_full_base_path}.${shell_variant@L}"
 
-    if fc_test_env_variable_defined debug; then
-		cp "$all_lines_file" "$output_path.debug"
-    	fc_log_info "debug file written to '$output_path.debug'"
-    	fc_log_info "e.g. do vimdiff '$output_path.debug' '$output_path'"
-    fi
-    # Clean up temporary files
-    rm "$all_lines_file" "$prepared_lines_file"
+		mv "$minified_lines_file" "${final_output_file}"
 
-    fc_log_info "processed file written to '$output_path'"
+		if fc_test_env_variable_defined debug; then
+			cp "$all_lines_file" "$output_full_base_path.debug"
+			fc_log_info "debug file written to '$output_full_base_path.debug'"
+			fc_log_info "e.g. do vimdiff '$output_full_base_path.debug' '$output_full_base_path'"
+		fi
+		# Clean up temporary files
+		rm "$all_lines_file" "$processed_lines_file" "$prepared_lines_file"
+
+		fc_log_info "final processed and minified file written to '${final_output_file}'"
 }
 
 main "$@"
