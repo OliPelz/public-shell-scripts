@@ -156,8 +156,7 @@ main() {
     concat_files_content "$input_dir" allowed_extensions[@] dir_whitelist[@] "$whitelist_regex" "$all_lines_file"
 
 	# loop over all supported shell variants
-	for shell_variant in BASH ZSH; then
-
+	for shell_variant in BASH ZSH; do
 		processed_lines_file=$(get_temp_filename)
 		prepared_lines_file=$(get_temp_filename)
 		minified_lines_file=$(get_temp_filename)
@@ -183,6 +182,7 @@ main() {
 		rm "$all_lines_file" "$processed_lines_file" "$prepared_lines_file"
 
 		fc_log_info "final processed and minified file written to '${final_output_file}'"
+	done
 }
 
 main "$@"
