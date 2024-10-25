@@ -11,7 +11,7 @@ s=${BASH_SOURCE:-${(%):-%x}} d=$(cd "$(dirname "$s")" && pwd) && source $d/commo
 # --dir_whitelist: comma-separated list of specific directory names to process (optional)
 # --whitelist_regex: regex to match directories or files (optional)
 # --output_full_base_path: full path to the output file, without extension, e.g. /tmp/a/b/c instead of  /tmp/a/b/c.sh
-
+# --debug: flag for debugging information
 
 
 # Prepare processor function
