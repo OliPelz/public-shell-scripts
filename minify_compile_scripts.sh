@@ -80,6 +80,7 @@ concat_files_content() {
     : > "$output_file"  # Clear output file
 
     for dirpath in "$script_base_path"/*/; do
+		dirpath=$(echo $dirpath | sed 's#/*$##g') # remove trailing '/'
         local dir_name=$(basename "$dirpath")
 
         # Check if directory is whitelisted (either exact match or matches regex)
@@ -89,23 +90,25 @@ concat_files_content() {
             continue
         fi
 
-		find_exclude_param=""
-        if test -s ${dir_name}/__EXCLUDE_FILES; then
-			# build exclude list for find command
-			find_exclude_params="$(printf "! -path '%s' " $(cat ${dir_name}/__EXCLUDE_FILES))"
-            fc_log_debug "found exclude file beneath ${dir_name}, generated find args: ${find_exclude_params}"
-        fi
+		find_exclude_params=""
+
 		fc_log_info "processing files in folder '${dir_name}'"
+
+        if test -s "${dirpath}/__EXCLUDE_FILES"; then
+			# build exclude list for find command
+			find_exclude_params="$(printf "! -path '%s' " $(cat ${dirpath}/__EXCLUDE_FILES))"
+            fc_log_debug "found exclude file beneath path: '${dir_name}', generated args for find command: '${find_exclude_params}'"
+        fi
 
         # Process allowed extensions
         for file_type in "${allowed_extension_types[@]}"; do
-            while IFS= read -r -d '' file; do
-                [[ "$file" == *__* || "$file" == *_PLACEHOLDER* ]] && continue
-                if [[ "$file" == *."$file_type" ]]; then
-                    fc_log_debug "$file"
-                    cat "$file" >> "$output_file"
+            while IFS= read -r -d '' loop_file; do
+                [[ "$loop_file" == *__* || "$loop_file" == *_PLACEHOLDER* ]] && continue
+                if [[ "$loop_file" == *."$file_type" ]]; then
+                    fc_log_debug "$loop_file"
+                    cat "$loop_file" >> "$output_file"
                 fi
-            done < <(find "$dirpath" -type f -print0 ${find_exclude_param})
+            done < <(eval find "$dirpath" -type f ${find_exclude_params} -print0)
         done
     done
 }
