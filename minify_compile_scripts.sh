@@ -1,5 +1,8 @@
 #!/bin/bash
 
+s=${BASH_SOURCE:-${(%):-%x}} d=$(cd "$(dirname "$s")" && pwd) && source $d/common.sh
+
+
 # Script to process shell files, filter comments, and write processed output
 # Usage:
 # --allowed_extensions: comma-separated extensions (e.g. sh,bash)

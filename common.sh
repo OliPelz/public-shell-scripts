@@ -2,7 +2,7 @@
 # fc_<xxxx>  for function-common, to not clash with other implementations
 #
 # 
-# to source this into any script do:
+# to source this file into any script do:
 # s=${BASH_SOURCE:-${(%):-%x}} d=$(cd "$(dirname "$s")" && pwd) && source $d/common.sh
 
 fc_get_full_path_script_executed_in() {
