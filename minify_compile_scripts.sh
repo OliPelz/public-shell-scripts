@@ -188,12 +188,13 @@ main() {
 		mv "${minified_lines_file}" "${final_output_file}"
 
 		if fc_test_env_variable_defined debug; then
-			cp "$all_lines_file" "$output_full_base_path.debug"
-			fc_log_info "debug file written to '$output_full_base_path.debug'"
-			fc_log_info "e.g. do vimdiff '$output_full_base_path.debug' '$output_full_base_path'"
+			cp "$all_lines_file" "${final_output_file}.debug"
+			fc_log_info "debug file written to '${final_output_file}.debug'"
+			fc_log_info "e.g. do vimdiff '${final_output_file}.debug' '${final_output_file}'"
+		else
+		    fc_log_info "final processed and minified file written to '${final_output_file}'"
 		fi
 
-		fc_log_info "final processed and minified file written to '${final_output_file}'"
 	done
 	rm "$all_lines_file" "$processed_lines_file" "$prepared_lines_file"
 }
