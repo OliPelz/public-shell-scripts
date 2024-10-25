@@ -5,6 +5,16 @@
 # to source this file into any script do:
 # s=${BASH_SOURCE:-${(%):-%x}} d=$(cd "$(dirname "$s")" && pwd) && source $d/common.sh
 
+# Function to test if an environment variable is defined
+fc_test_env_variable_defined() {
+    local var_name="$1"
+    if [ -z "${!var_name+x}" ]; then
+        return 1  # variable is not defined or empty string
+    else
+        return 0  # variable is set
+    fi
+}
+
 fc_get_full_path_script_executed_in() {
     script_path="${BASH_SOURCE[0]}"
     script_dir="$(cd "$(dirname "$script_path")" && pwd)"
@@ -67,10 +77,34 @@ fc_log_fatal() {
     fc_should_log "FATAL" && echo -e "\033[1;31m[FATAL]\033[0m $1"  # Bold Red
 }
 
+fc_create_temp() {
+    local type="$1"
+    local delete_on_exit="${2:-true}"
+    local suffix="${3:-''}"
+    local temp_path=""
+
+    if [[ "$type" == "file" ]]; then
+        temp_path=$(mktemp --suffix $suffix)
+    elif [[ "$type" == "dir" ]]; then
+        temp_path=$(mktemp -d --suffix $suffix)
+    else
+        echo "Invalid type specified. Use 'file' or 'dir'."
+        return 1
+    fi
+    echo "$temp_path"
+
+    if [[ "$delete_on_exit" == true ]]; then
+        trap 'rm -rf "$temp_path"' EXIT
+    fi
+}
+
 # Create a temporary file and return its name
 fc_get_temp_filename() {
-    mktemp /tmp/script_processing.XXXXXX
+	fc_create_temp file false $1
 }
+
+
+
 
 # Write lines to a specified file
 fc_write_to_file() {
@@ -84,13 +118,4 @@ fc_get_parent_directory() {
     local script_dir
     script_dir=$(dirname "$(realpath "$0")")
     dirname "$script_dir"
-}
-# Function to test if an environment variable is defined
-fc_test_env_variable_defined() {
-    local var_name="$1"
-    if [ -z "${!var_name+x}" ]; then
-        return 1  # variable is not defined or empty string
-    else
-        return 0  # variable is set
-    fi
 }

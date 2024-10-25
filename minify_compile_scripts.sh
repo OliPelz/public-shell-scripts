@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# import common.sh
 s=${BASH_SOURCE:-${(%):-%x}} d=$(cd "$(dirname "$s")" && pwd) && source $d/common.sh
 
 
@@ -130,8 +131,9 @@ main() {
         shift
     done
 
-	if fc_test_command_in_path preprocess; then
+	if ! fc_test_command_in_path preprocess; then
 		fc_log_error "mandantory commandline interface 'preprocess' (python) not installed"
+		exit 1
 	fi
 
     # Check mandatory arguments
@@ -149,43 +151,48 @@ main() {
 
     # Set input_dir to parent directory if not provided
     if ! fc_test_env_variable_defined input_dir; then
-        input_dir=$(get_parent_directory)
+        input_dir=$(fc_get_parent_directory)
     fi
 
     # Create temporary files for processing
-    all_lines_file=$(get_temp_filename)
+    all_lines_file=$(fc_get_temp_filename .sh)
 
     # concat the files and save the result to a temporary file
-    concat_files_content "$input_dir" allowed_extensions[@] dir_whitelist[@] "$whitelist_regex" "$all_lines_file"
+    concat_files_content "$input_dir" allowed_extensions[@] dir_whitelist[@] "${whitelist_regex}" "${all_lines_file}"
 
 	# loop over all supported shell variants
 	for shell_variant in BASH ZSH; do
-		processed_lines_file=$(get_temp_filename)
-		prepared_lines_file=$(get_temp_filename)
-		minified_lines_file=$(get_temp_filename)
-
-	# now lets run the preprocessor step (currently this is a python module installed from pip)
-		preprocess -D SHELL_IS_${shell_variant}=true -v -f {all_lines_file} -o ${processed_lines_file} 
+		processed_lines_file=$(fc_get_temp_filename .sh)
+		prepared_lines_file=$(fc_get_temp_filename .sh)
+		minified_lines_file=$(fc_get_temp_filename .sh)
 
     # Prepare and minify the lines, using temporary files
-		prepare_processor "$processed_lines_file" "$prepared_lines_file"
-		minify_shell_code "$prepared_lines_file" "$minified_lines_file"
+		fc_log_info "prepare preprocessor step for: ${shell_variant}"
+		prepare_processor "${all_lines_file}" "${processed_lines_file}" 
+
+	# now lets run the preprocessor step (currently this is a python module installed from pip)
+		set -e
+		fc_log_info "preprocessing step for: ${shell_variant}"
+		preprocess -D "SHELL_IS_${shell_variant}=true" -f -o ${prepared_lines_file} ${processed_lines_file}
+		set +e 
+
+		fc_log_info "minifying step for: ${shell_variant}"
+		minify_shell_code "${prepared_lines_file}" "${minified_lines_file}"
 
     # Write the output to the final output file
 		final_output_file="${output_full_base_path}.${shell_variant@L}"
 
-		mv "$minified_lines_file" "${final_output_file}"
+		mv "${minified_lines_file}" "${final_output_file}"
 
 		if fc_test_env_variable_defined debug; then
 			cp "$all_lines_file" "$output_full_base_path.debug"
 			fc_log_info "debug file written to '$output_full_base_path.debug'"
 			fc_log_info "e.g. do vimdiff '$output_full_base_path.debug' '$output_full_base_path'"
 		fi
-		# Clean up temporary files
-		rm "$all_lines_file" "$processed_lines_file" "$prepared_lines_file"
 
 		fc_log_info "final processed and minified file written to '${final_output_file}'"
 	done
+	rm "$all_lines_file" "$processed_lines_file" "$prepared_lines_file"
 }
 
 main "$@"
