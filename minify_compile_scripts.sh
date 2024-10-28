@@ -71,7 +71,7 @@ minify_shell_code() {
     # now apply some removal on multi line objects, like multi-line comments
 
     # 1. remove multiline comments using :' <line><line<line>...... '
-    sed -i '/^:[[:space:]]*'\''/,/^'\''/d' $input_file
+    sed -i '/^:[[:space:]]*'\''/,/^'\''/d' $output_file
 }
 
 # Process files and collect content based on allowed extensions
