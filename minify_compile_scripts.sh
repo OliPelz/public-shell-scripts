@@ -151,12 +151,6 @@ main() {
         exit 1
     fi
 
-    # Check if output_full_base_path starts with "__"
-    if [[ "$(basename "$output_full_base_path")" == __* ]]; then
-        fc_log_error "Error: Output file path cannot start with '__'."
-        exit 1
-    fi
-
     # Set input_dir to parent directory if not provided
     if ! fc_test_env_variable_defined input_dir; then
         input_dir=$(fc_get_parent_directory)
