@@ -140,6 +140,7 @@ fc_get_parent_directory() {
 # - USE_PROXY: Set to true to enable proxy usage, false to disable it.
 # - HTTPS_PROXY: The proxy URL to use.
 # - CERT_BASE64_STRING: Base64-encoded SSL certificate string for verifying proxy connections (optional).
+# returns 0 if download success, >0 otherwise
 fc_pcurl_wrapper() {
     local url="$1"
     shift
@@ -161,11 +162,49 @@ fc_pcurl_wrapper() {
 
     # Execute curl with the appropriate options
     ${curl_cmd} ${proxy_cmd} ${cert_cmd} ${additional_params} "${url}"
+    my_rc=$?
 
     # Clean up temporary cert file if created
     if [ -n "${TEMP_CERT_FILE}" ]; then
         rm "${TEMP_CERT_FILE}"
     fi
+    return ${my_rc}
 }
 
+# download latest full source shell script file from git
+#
+fc_download_full_source() {
+	DOWNLOAD_URL=https://raw.githubusercontent.com/OliPelz/public-shell-functions/main/build/__full-source.bash 
 
+	# info out if proxy use
+	if fc_test_env_variable_defined USE_PROXY; then
+	    fc_log_info "USE_PROXY defined, we are now using a proxy!!!" 
+	    for info_env in HTTPS_PROXY CERT_BASE64_STRING; do
+	      if temp_test_env_variable_defined $info_env; then
+		 fc_log_info "$info_env defined" 
+	      else
+		 fc_log_info "$info_env NOT defined, please recheck if proxy is not working" 
+	      fi
+	    done
+	else
+	    fc_log_info "USE_PROXY NOT defined, we are NOT using a proxy" 
+	fi
+
+
+
+	# download my latest compiled public shell functions to a temporary location
+	# 
+	# this might use the following proxy env vars, depending on your situation:
+	# - USE_PROXY: Set to true to enable proxy usage, false to disable it.
+	# - HTTPS_PROXY: The proxy URL to use.
+	# - CERT_BASE64_STRING: Base64-encoded SSL certificate string for verifying proxy connections (optional).
+
+	temp_downloaded_source=$(mktemp --suffix ".download.sh")
+	if fc_pcurl_wrapper $DOWNLOAD_URL -o ${temp_downloaded_source}; then
+		fc_log_info "downloaded source successfully to ${temp_downloaded_source}"
+		echo $temp_downloaded_source
+	else
+		fc_log_error "could not download full source file from $DOWNLOAD_URL"
+		echo ""
+	fi
+}
