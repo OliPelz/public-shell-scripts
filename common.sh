@@ -137,9 +137,9 @@ fc_get_parent_directory() {
 # curl wrapper which can work behind proxy
 # to use proxy feature define:
 #
-# USE_PROXY=true
-# HTTPS_PROXY=http://your/proxy.com:8888
-# TEMP_CERT_FILE=/full/path/to/cert/for/proxy
+# - USE_PROXY: Set to true to enable proxy usage, false to disable it.
+# - HTTPS_PROXY: The proxy URL to use.
+# - CERT_BASE64_STRING: Base64-encoded SSL certificate string for verifying proxy connections (optional).
 fc_pcurl_wrapper() {
     local url="$1"
     shift
