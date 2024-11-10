@@ -1,9 +1,18 @@
-# common functions for public scripts, must be prefixed/pseudo namespaced with 
-# fc_<xxxx>  for function-common, to not clash with other implementations
+# aboslute minimal common functions set to use!
+# must be prefixed/pseudo namespaced with 
+# fc_<xxxx>  for function-common, to not clash with the original
+# functions names i stole them from
 #
 # 
 # to source this file into any script do:
 # s=${BASH_SOURCE:-${(%):-%x}} d=$(cd "$(dirname "$s")" && pwd) && source $d/common.sh
+# 
+# i copy/put this 'function set' to any new project whenever i need an essential function set
+# and dont have internet as a prestep to setup and download advanced function libs 
+#
+# to fetch the latest copy of this script to your project do:
+# curl -O __minimal_common.sh https://raw.githubusercontent.com/OliPelz/public-shell-scripts/main/common.sh
+
 
 # Function to test if an environment variable is defined
 fc_test_env_variable_defined() {
@@ -119,3 +128,39 @@ fc_get_parent_directory() {
     script_dir=$(dirname "$(realpath "$0")")
     dirname "$script_dir"
 }
+
+# curl wrapper which can work behind proxy
+# to use proxy feature define:
+#
+# USE_PROXY=true
+# HTTPS_PROXY=http://your/proxy.com:8888
+# TEMP_CERT_FILE=/full/path/to/cert/for/proxy
+fc_pcurl_wrapper() {
+    local url="$1"
+    shift
+    local additional_params="$@"
+
+    local curl_cmd="curl"
+    local proxy_cmd=""
+    local cert_cmd=""
+
+    if [ "${USE_PROXY,,}" == "true" ]; then
+        if test_env_variable_defined CERT_BASE64_STRING; then
+            # Create a temporary file for the cert
+            TEMP_CERT_FILE=$(create_temp_file)
+            echo "${CERT_BASE64_STRING}" | base64 -d > "${TEMP_CERT_FILE}"
+            cert_cmd="--cacert ${TEMP_CERT_FILE}"
+        fi
+        proxy_cmd="--proxy ${HTTPS_PROXY}"
+    fi
+
+    # Execute curl with the appropriate options
+    ${curl_cmd} ${proxy_cmd} ${cert_cmd} ${additional_params} "${url}"
+
+    # Clean up temporary cert file if created
+    if [ -n "${TEMP_CERT_FILE}" ]; then
+        rm "${TEMP_CERT_FILE}"
+    fi
+}
+
+
