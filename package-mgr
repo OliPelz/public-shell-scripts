@@ -3,139 +3,136 @@
 : '
 Package Manager Wrapper Script
 
-ShortDesc: A script to wrap package manager commands (pacman, dnf, apt) with optional proxy support.
+ShortDesc: A script to wrap package manager commands (pacman, dnf, apt) with optional proxy support, universal install/remove/update commands, and SSL certificate handling.
 
 Description:
-This script serves as a wrapper for common Linux package managers: pacman, dnf, and apt. It allows for the configuration of proxy settings and handles timeouts for downloads. The script checks if it is being run as root and detects the Linux distribution to determine which package manager to use. Proxy configurations can be set through environment variables, and it can decode and use SSL certificates for secure proxy connections.
+This script wraps common Linux package managers (pacman, dnf, apt) with proxy support, SSL certificate handling, and universal commands for installing, removing, and updating packages, irrespective of the package manager.
 
 Parameters:
-- use pacman, dnf or apt parameters which will get called using the correct package manager internally.
+--install <packages>: Install specified comma-separated packages
+--remove <packages>: Remove specified comma-separated packages
+--system-update: Update all system packages
+--timeout <seconds>: Set the timeout for commands (default is 600 seconds)
 
 Environment Variables:
-- USE_PROXY: Set to true to enable proxy usage, or false to disable it.
+- USE_PROXY: Set to true to enable proxy usage, false to disable it.
 - HTTPS_PROXY: The proxy URL to use.
 - CERT_BASE64_STRING: Base64-encoded SSL certificate string for verifying proxy connections (optional).
 
 Returns:
 - 0: Success
-- 1: Failure (e.g., if not run as root, if the package manager fails, or if the distribution is unsupported)
+- 1: Failure (if not run as root, if the package manager fails, or if the distribution is unsupported)
 
 Example Usage:
-./package-mgr <package_manager_args>
+./package-mgr --install vim,git --timeout 900
 '
 
-SCRIPT_PARAMS="$@"
-
+# Default timeout
 DOWNLOAD_TIMEOUT_SECONDS=600
 
-source ./functions/common.sh
+# Parse arguments
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        --install) action="install"; packages="$2"; shift ;;
+        --remove) action="remove"; packages="$2"; shift ;;
+        --system-update) action="update" ;;
+        --timeout) DOWNLOAD_TIMEOUT_SECONDS="$2"; shift ;;
+        *) echo "Unknown parameter: $1"; exit 1 ;;
+    esac
+    shift
+done
 
+# Proxy and SSL certificate setup
+function setup_proxy_and_cert() {
+    if [[ "$USE_PROXY" == "true" ]]; then
+        echo "[INFO] Proxy usage is enabled, configuring package manager to use proxy."
+
+        if [[ -n "$CERT_BASE64_STRING" ]]; then
+            TEMP_CERT_FILE=$(mktemp)
+            echo "$CERT_BASE64_STRING" | base64 -d > "$TEMP_CERT_FILE"
+            echo "[INFO] Proxy SSL cert usage is enabled."
+        fi
+    fi
+}
+
+# Wrapper for pacman with proxy and cert support
 function _pacman_wrapper {
-    temp_pkgmgr_config=$(create_temp file)
+    local config_file=$(mktemp)
+    cp /etc/pacman.conf "$config_file" || { echo "[ERROR] Failed to copy pacman.conf"; return 1; }
 
-    # Copy the existing pacman.conf as a base
-    if ! cp /etc/pacman.conf "${temp_pkgmgr_config}"; then
-        echo "[ERROR] Failed to copy pacman.conf"
-        return 1
+    if [[ "$USE_PROXY" == "true" ]]; then
+        local proxy_command="XferCommand = /usr/bin/curl --proxy \"$HTTPS_PROXY\" -fC - --retry 3 --retry-delay 3 --connect-timeout $DOWNLOAD_TIMEOUT_SECONDS -o %o %u"
+        [[ -n "$CERT_BASE64_STRING" ]] && proxy_command="XferCommand = /usr/bin/curl --proxy \"$HTTPS_PROXY\" --cacert \"$TEMP_CERT_FILE\" -fC - --retry 3 --retry-delay 3 --connect-timeout $DOWNLOAD_TIMEOUT_SECONDS -o %o %u"
+        sed -i "/^\[options\]/a $proxy_command" "$config_file"
     fi
 
-    if is_var_true "USE_PROXY"; then
-        # config pacman to use proxy url, set bigger timeout for slower timeouts
-        PROXYADDON="XferCommand = /usr/bin/curl --proxy "${HTTPS_PROXY}" -fC - --retry 3 --retry-delay 3 --connect-timeout ${DOWNLOAD_TIMEOUT_SECONDS} -o %o %u"
-
-        # optionally: cooperate proxy rewrites SSL so we need to trust its cert
-        if test_env_variable_defined CERT_BASE64_STRING; then 
-            PROXYADDON="XferCommand = /usr/bin/curl --proxy "${HTTPS_PROXY}" --cacert "${TEMP_CERT_FILE}" \
-                        -fC - --retry 3 --retry-delay 3 --connect-timeout ${DOWNLOAD_TIMEOUT_SECONDS} -o %o %u"
-        fi		
-    
-        sed -i '/^\[options\]/a $PROXYADDON' ${temp_pkgmgr_config}
-    fi
-    # the actual wrapper
-    pacman --config "${temp_pkgmgr_config}" "${SCRIPT_PARAMS}"
+    case "$action" in
+        install) pacman --config "$config_file" -Sy --noconfirm ${packages//,/ } ;;
+        remove) pacman --config "$config_file" -R --noconfirm ${packages//,/ } ;;
+        update) pacman --config "$config_file" -Syu --noconfirm ;;
+    esac
 }
 
+# Wrapper for dnf with proxy and cert support
 function _dnf_wrapper {
-    temp_pkgmgr_config=$(create_temp file)
+    local config_file=$(mktemp)
+    cp /etc/dnf/dnf.conf "$config_file" || { echo "[ERROR] Failed to copy dnf.conf"; return 1; }
 
-    # Copy the existing dnf.conf as a base
-    if ! cp /etc/dnf/dnf.conf "${temp_pkgmgr_config}"; then
-        echo "[ERROR] Failed to copy dnf.conf"
-        return 1
+    if [[ "$USE_PROXY" == "true" ]]; then
+        local proxy_addon="proxy=$HTTPS_PROXY\ntimeout=$DOWNLOAD_TIMEOUT_SECONDS"
+        [[ -n "$CERT_BASE64_STRING" ]] && proxy_addon="$proxy_addon\nsslverify=1\nsslcacert=$TEMP_CERT_FILE"
+        echo -e "$proxy_addon" >> "$config_file"
     fi
 
-    if is_var_true "USE_PROXY"; then
-        # config dnf to use proxy url, set bigger timeout for slower proxys (often on scanning proxies)
-        PROXYADDON="proxy=${HTTPS_PROXY}\ntimeout=${DOWNLOAD_TIMEOUT_SECONDS}"
-
-        # optionally: cooperate proxy rewrites SSL so we need to trust its cert
-        if test_env_variable_defined CERT_BASE64_STRING; then 
-            PROXYADDON="${PROXYADDON}\nsslverify=1\nsslcacert=${TEMP_CERT_FILE}"
-        fi		
-        echo -e "${PROXYADDON}" >> ${temp_pkgmgr_config}
-    fi
-    # the actual wrapper
-    dnf -c ${temp_pkgmgr_config} "${SCRIPT_PARAMS}"
+    case "$action" in
+        install) dnf -c "$config_file" install -y ${packages//,/ } ;;
+        remove) dnf -c "$config_file" remove -y ${packages//,/ } ;;
+        update) dnf -c "$config_file" upgrade -y ;;
+    esac
 }
 
+# Wrapper for apt with proxy and cert support
 function _apt_wrapper {
-    temp_pkgmgr_config=$(create_temp file)
+    local config_file=$(mktemp)
+    cp /etc/apt/apt.conf "$config_file" || { echo "[ERROR] Failed to copy apt.conf"; return 1; }
 
-    # Copy the existing apt.conf as a base
-    if ! cp /etc/apt/apt.conf "${temp_pkgmgr_config}"; then
-        echo "[ERROR] Failed to copy apt.conf"
-        return 1
+    if [[ "$USE_PROXY" == "true" ]]; then
+        local proxy_addon="Acquire::https::proxy \"$HTTPS_PROXY\";\nAcquire::http::Timeout \"$DOWNLOAD_TIMEOUT_SECONDS\";\nAcquire::https::Timeout \"$DOWNLOAD_TIMEOUT_SECONDS\";"
+        [[ -n "$CERT_BASE64_STRING" ]] && proxy_addon="$proxy_addon\nAcquire::https::Verify-Peer \"true\";\nAcquire::https::CaInfo \"$TEMP_CERT_FILE\";"
+        echo -e "$proxy_addon" >> "$config_file"
     fi
 
-    if is_var_true "USE_PROXY"; then
-        # config apt to use proxy url, set bigger timeout for slower timeouts
-        PROXYADDON="Acquire::https::proxy \"${HTTPS_PROXY}\";\n";
-        # Set higher timeout when using proxy
-        PROXYADDON="${PROXYADDON}Acquire::http::Timeout \"${DOWNLOAD_TIMEOUT_SECONDS}\";\nAcquire::https::Timeout \"${DOWNLOAD_TIMEOUT_SECONDS}\";\n"
-
-        # optionally: cooperate proxy rewrites SSL so we need to trust its cert
-        if test_env_variable_defined CERT_BASE64_STRING; then 
-            PROXYADDON="${PROXYADDON}\nAcquire::https::Verify-Peer \"true\";\nAcquire::https::CaInfo \"${TEMP_CERT_FILE}\";\n"
-        fi		
-        echo -e "${PROXYADDON}" >> ${temp_pkgmgr_config}
-    fi	
-    # the actual wrapper
-    apt -c "${temp_pkgmgr_config}" "${SCRIPT_PARAMS}"
+    case "$action" in
+        install) apt -c "$config_file" install -y ${packages//,/ } ;;
+        remove) apt -c "$config_file" remove -y ${packages//,/ } ;;
+        update) apt -c "$config_file" update && apt -c "$config_file" upgrade -y ;;
+    esac
 }
-
 
 function main {
-	if ! is_root; then
-		echo "[ERROR] script needs to be run as root"
-		return 1
-	fi
+    # Ensure script is run as root
+    if [[ $EUID -ne 0 ]]; then
+        echo "[ERROR] script needs to be run as root"
+        exit 1
+    fi
 
-    if is_var_true "USE_PROXY"; then
-        echo "[INFO] proxy usage is enabled, to disable use USE_PROXY=false"
-        # encoded base64 cert env to file, if defined
-        if test_env_variable_defined CERT_BASE64_STRING; then 
-            TEMP_CERT_FILE=$(create_temp file)
-            echo "${CERT_BASE64_STRING}" | base64 -d > ${TEMP_CERT_FILE}
-            echo "[INFO] proxy SSL cert usage is enabled"
-        fi
+    # Set up proxy and SSL cert if enabled
+    setup_proxy_and_cert
+
+    # Detect and use appropriate package manager
+    if command -v dnf &> /dev/null; then
+        _dnf_wrapper
+    elif command -v pacman &> /dev/null; then
+        _pacman_wrapper
+    elif command -v apt &> /dev/null; then
+        _apt_wrapper
     else
-        echo "[INFO] proxy usage is disabled, to enable use USE_PROXY=true"
+        echo "[ERROR] Unsupported distribution. No recognized package manager found."
+        exit 1
     fi
 
-
-    # Detect the package manager based on the distribution
-	ID=$(detect_distribution)
-	if [ ${ID} == "RHEL" ]; then 
-		_dnf_wrapper
-	elif [ ${ID} == "ARCH" ]; then 
-		_pacman_wrapper;
-	elif [ ${ID} == "DEBIAN" ]; then 
-		_apt_wrapper
-	else 
-		echo "Unsupported distribution...bailing out"
-		return 1
-    fi
+    # Cleanup temporary cert file if created
+    [[ -n "$TEMP_CERT_FILE" ]] && rm -f "$TEMP_CERT_FILE"
 }
-
 
 main
