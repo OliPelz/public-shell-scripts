@@ -12,7 +12,12 @@
 #
 # to fetch the latest copy of this script to your project do:
 # curl -O __minimal_common.sh https://raw.githubusercontent.com/OliPelz/public-shell-scripts/main/common.sh
-
+#
+# then to use it in your target script use
+#
+# import common.sh
+# s=${BASH_SOURCE:-${(%):-%x}} d=$(cd "$(dirname "$s")" && pwd) && source $d/common.sh
+#
 
 # Function to test if an environment variable is defined
 fc_test_env_variable_defined() {
