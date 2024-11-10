@@ -72,23 +72,23 @@ fc_should_log() {
 
 # Logging functions
 fc_log_debug() {
-    fc_should_log "DEBUG" && echo -e "\033[0;36m[DEBUG]\033[0m $1"  # Cyan
+    fc_should_log "DEBUG" && echo -e "\033[0;36m[DEBUG]\033[0m $1" >&2 # Cyan
 }
 
 fc_log_info() {
-    fc_should_log "INFO" && echo -e "\033[0;32m[INFO]\033[0m $1"   # Green
+    fc_should_log "INFO" && echo -e "\033[0;32m[INFO]\033[0m $1" >&2 # Green
 }
 
 fc_log_warn() {
-    fc_should_log "WARN" && echo -e "\033[0;33m[WARN]\033[0m $1"   # Yellow
+    fc_should_log "WARN" && echo -e "\033[0;33m[WARN]\033[0m $1" >&2 # Yellow
 }
 
 fc_log_error() {
-    fc_should_log "ERROR" && echo -e "\033[0;31m[ERROR]\033[0m $1"  # Red
+    fc_should_log "ERROR" && echo -e "\033[0;31m[ERROR]\033[0m $1" >&2 # Red
 }
 
 fc_log_fatal() {
-    fc_should_log "FATAL" && echo -e "\033[1;31m[FATAL]\033[0m $1"  # Bold Red
+    fc_should_log "FATAL" && echo -e "\033[1;31m[FATAL]\033[0m $1" >&2 # Bold Red
 }
 
 fc_create_temp() {
